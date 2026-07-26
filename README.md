@@ -49,13 +49,15 @@ Mockup'taki tüm ekranlar gerçek App Router sayfalarına dönüştürüldü. Ve
   - `/randevu-al` — 4 adımlı randevu sihirbazı (tek client component, `useState` ile adım yönetimi): hizmet seç → usta seç → tarih/saat seç → özet (**%50 ön ödeme hesap + kalan tutar**, WhatsApp/SMS kanal seçici + canlı mesaj önizleme, onayla → toast → `/randevularim`'e yönlendirme)
   - `/randevularim` — yaklaşan/geçmiş sekmeli randevu listesi
 - **Panel tarafı** (`src/app/panel/`, sidebar layout + `PanelNav`):
-  - `/panel` — haftalık takvim (3 berber sütunu, randevu bloklarının pozisyonu saatten dinamik hesaplanıyor)
+  - `/panel` — haftalık takvim (3 berber sütunu, randevu bloklarının pozisyonu saatten dinamik hesaplanıyor). Bloklar **tıklanabilir**: detay modalı açılır, onayla/tamamlandı/gelmedi/iptal aksiyonları çalışır (local state, Supabase bağlanana kadar kalıcı değil) — Faz 4'ün "randevu detay modalı" gereksinimi
   - `/panel/hizmetler` — hizmet tablosu
   - `/panel/berberler` — berber kartları (çalışma günleri)
+  - `/panel/musteriler` — müşteri listesi (hafif CRM: telefon, kanal, ziyaret sayısı, not)
   - `/panel/analitik` — gelir/randevu istatistikleri, günlük gelir barları, popüler hizmetler
+  - `/panel/ayarlar` — dükkan bilgisi + ön ödeme/iptal politikası görünümü
 - Tasarım sistemi (`globals.css`) mockup'taki CSS değişkenleri ve component class'ları (`.btn`, `.svc-row`, `.barber-card`, `.summary-card`, `.appt-block`, `.staffcard` vb.) birebir taşındı — görsel olarak mockup ile tutarlı.
-- Doğrulama: `npx tsc --noEmit` temiz, `npm run build` başarılı (7 route, hepsi statik prerender), tarayıcıda uçtan uca randevu akışı (hizmet→usta→tarih→onay→randevularım'a düşme) ve panel'in 4 sayfası manuel test edildi — hata yok.
-- **Henüz yapılmayan (bilinçli olarak dışarıda bırakıldı):** gerçek auth (telefon OTP / email-parola), Supabase'e bağlı CRUD (hizmet/berber ekle-düzenle formları şu an sadece görsel, işlevsiz), iyzico ödeme entegrasyonu, WhatsApp/SMS gönderimi — bunlar Supabase projesi kurulduktan sonraki adımlar.
+- Doğrulama: `npx tsc --noEmit` temiz, `npm run build` başarılı (9 route, hepsi statik prerender), tarayıcıda uçtan uca randevu akışı (hizmet→usta→tarih→onay→randevularım'a düşme), takvimdeki randevu detay/aksiyon modalı ve panel'in 6 sayfası manuel test edildi — hata yok.
+- **Henüz yapılmayan (bilinçli olarak dışarıda bırakıldı):** gerçek auth (telefon OTP / email-parola), Supabase'e bağlı CRUD (hizmet/berber/müşteri ekle-düzenle formları şu an sadece görsel, işlevsiz), "+ Yeni Randevu" (elden randevu) formu, iyzico ödeme entegrasyonu, WhatsApp/SMS gönderimi — bunlar Supabase projesi kurulduktan sonraki adımlar.
 
 ## Alınan Önemli Kararlar (Karar Günlüğü)
 
