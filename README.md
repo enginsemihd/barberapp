@@ -78,17 +78,20 @@ IVR webhook'una gelen çağrının `Caller ID`'si "özel numaralar" tablosunda v
 4. Randevu + müsaitlik veri modeli — **`docs/barberapp.md`'deki `appointments`, `staff_schedules`, `staff_time_off` tablolarıyla aynı şema kullanılmalı, ayrı bir DB modeli icat edilmemeli** (kullanıcının önerdiği "MongoDB veya PostgreSQL" — mevcut plan zaten Postgres/Supabase seçmişti, bu korunmalı, tutarlılık için)
 5. Yeni tablo: `whitelist_numbers` (personal/özel numaralar) — whitelist özelliği için
 
-### Çözülmemiş sorular (bir sonraki oturumda netleştirilmeli)
-- Bu Express katmanı, mevcut Next.js uygulamasının içine mi (API routes) yoksa ayrı bir mikroservis olarak mı kurulacak?
+### Çözülen sorular (2026-07-26)
+- ~~Express ayrı servis mi?~~ → Hayır. Next.js API routes içinde (`/api/whatsapp/webhook`, `/api/ivr/webhook`), ayrı Express servisi yok.
+- ~~Build sırası: önce çekirdek app mı, önce WhatsApp/IVR mı?~~ → Önce çekirdek app (Faz 1-8), WhatsApp/IVR sonra (Faz 9). Gerekçe ve detay: `docs/barberapp.md` → "Sıradaki Adım — Build Sırası" bölümü.
+
+### Hâlâ açık (kullanıcı tarafında, kodlamayı bloklamıyor — paralel yürüsün)
 - IVR santral sağlayıcısı hangisi olacak (Netgsm/Bulutfon) — her birinin webhook payload formatı farklı, seçim yapılınca entegrasyon kodu ona göre yazılmalı
-- Meta WhatsApp Cloud API için Business hesabı/numara başvurusu yapıldı mı — bağımlılık bu onaya bağlı
+- Meta WhatsApp Cloud API için Business hesabı/numara başvurusu yapıldı mı
 
 ## Sıradaki Adımlar
 
 1. Vercel deployment protection kapatma + GitHub-Vercel git entegrasyonu — kullanıcı tarafında tamamlanacak
-2. `docs/barberapp.md`'yi bu README'deki WhatsApp/IVR kararlarıyla güncelle (plan dosyasına resmi olarak işlenmeli)
-3. Yukarıdaki "Çözülmemiş sorular" netleşince Express/Next.js API route + webhook implementasyonuna başla
-4. Mockup onaylandıktan sonra gerçek kodlamaya geç (`docs/barberapp.md` → "Geliştirme Aşamaları" bölümü)
+2. Santral (Netgsm/Bulutfon) + Meta WhatsApp Business başvurularını şimdi başlat (yavaş süreçler, kodlamayı beklemesin)
+3. Faz 1'e başla: Next.js scaffold + Supabase proje kurulumu (`docs/barberapp.md` → "Geliştirme Aşamaları")
+4. Faz 1-8 bitince Faz 9'a (WhatsApp Bot + IVR) geç
 
 ## Proje Yapısı
 
