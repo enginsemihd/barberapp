@@ -41,6 +41,22 @@ Gerçek uygulamanın kodu `web/` klasöründe: Next.js 16 (App Router, TypeScrip
 
 Yerel dev sunucusu çalışıyor: `.claude/launch.json`'da `barberapp-web` config'i var (port 3010, `web/` içinde `npm run dev`).
 
+### 5. Faz 2 — Gerçek Next.js UI (mockup'tan kodlamaya döküldü, 2026-07-27)
+Mockup'taki tüm ekranlar gerçek App Router sayfalarına dönüştürüldü. Veri katmanı şimdilik `web/src/lib/mock-data.ts` (services/staff/appointments/shopSettings) — Supabase projesi kurulunca bu dosyanın yerini gerçek sorgular alacak, sayfa bileşenleri değişmeden.
+
+- **Müşteri tarafı** (`src/app/(customer)/`, route group + `BottomNav`):
+  - `/` — ana sayfa (hero, trustline'lar, öne çıkan hizmetler, ustalar)
+  - `/randevu-al` — 4 adımlı randevu sihirbazı (tek client component, `useState` ile adım yönetimi): hizmet seç → usta seç → tarih/saat seç → özet (**%50 ön ödeme hesap + kalan tutar**, WhatsApp/SMS kanal seçici + canlı mesaj önizleme, onayla → toast → `/randevularim`'e yönlendirme)
+  - `/randevularim` — yaklaşan/geçmiş sekmeli randevu listesi
+- **Panel tarafı** (`src/app/panel/`, sidebar layout + `PanelNav`):
+  - `/panel` — haftalık takvim (3 berber sütunu, randevu bloklarının pozisyonu saatten dinamik hesaplanıyor)
+  - `/panel/hizmetler` — hizmet tablosu
+  - `/panel/berberler` — berber kartları (çalışma günleri)
+  - `/panel/analitik` — gelir/randevu istatistikleri, günlük gelir barları, popüler hizmetler
+- Tasarım sistemi (`globals.css`) mockup'taki CSS değişkenleri ve component class'ları (`.btn`, `.svc-row`, `.barber-card`, `.summary-card`, `.appt-block`, `.staffcard` vb.) birebir taşındı — görsel olarak mockup ile tutarlı.
+- Doğrulama: `npx tsc --noEmit` temiz, `npm run build` başarılı (7 route, hepsi statik prerender), tarayıcıda uçtan uca randevu akışı (hizmet→usta→tarih→onay→randevularım'a düşme) ve panel'in 4 sayfası manuel test edildi — hata yok.
+- **Henüz yapılmayan (bilinçli olarak dışarıda bırakıldı):** gerçek auth (telefon OTP / email-parola), Supabase'e bağlı CRUD (hizmet/berber ekle-düzenle formları şu an sadece görsel, işlevsiz), iyzico ödeme entegrasyonu, WhatsApp/SMS gönderimi — bunlar Supabase projesi kurulduktan sonraki adımlar.
+
 ## Alınan Önemli Kararlar (Karar Günlüğü)
 
 | Karar | Ne değişti | Neden |
@@ -101,9 +117,10 @@ IVR webhook'una gelen çağrının `Caller ID`'si "özel numaralar" tablosunda v
 1. **Kullanıcı tarafında:** Supabase'de ödenmemiş faturayı kapat (proje oluşturmayı bloke ediyor) — bkz. "Altyapı durumu"
 2. **Kullanıcı tarafında:** Vercel deployment protection kapatma + GitHub-Vercel git entegrasyonu
 3. **Kullanıcı tarafında:** Santral (Netgsm/Bulutfon) + Meta WhatsApp Business başvurularını şimdi başlat (yavaş süreçler, kodlamayı beklemesin)
-4. Supabase faturası kapanınca: proje oluştur, `web/supabase/migrations/`'ı uygula, `.env.local`'i doldur
-5. Faz 2'ye geç: mockup'taki ekranların gerçek Next.js UI'a dökülmesi (hizmet/berber CRUD, dashboard)
-6. Faz 6/7'de iyzico entegrasyonu, Faz 1-8 bitince Faz 9'a (WhatsApp Bot + IVR) geç
+4. Supabase faturası kapanınca: proje oluştur, `web/supabase/migrations/`'ı uygula, `.env.local`'i doldur, `lib/mock-data.ts`'i gerçek Supabase sorgularıyla değiştir
+5. Auth: telefon OTP (müşteri) + email/parola (staff) — Supabase Auth zaten kurulu (`lib/supabase/*`), sadece login/signup ekranları + route koruması eksik
+6. Hizmet/berber CRUD formlarını gerçek `insert`/`update` sorgularına bağla (şu an `/panel/hizmetler` ve `/panel/berberler` sadece görsel)
+7. Faz 6/7'de iyzico entegrasyonu, Faz 1-8 bitince Faz 9'a (WhatsApp Bot + IVR) geç
 
 ## Proje Yapısı
 
@@ -117,11 +134,17 @@ BarberApp/
 │   └── mockup.html         (Artifact fragment — Claude'da yayınlanan versiyon)
 ├── public/
 │   └── index.html          (mockup'ın bağımsız statik hosting versiyonu — Vercel'e deploy edilen budur)
-└── web/                     (gerçek uygulama — Next.js 16 + Supabase, Faz 1 scaffold tamam)
+└── web/                     (gerçek uygulama — Next.js 16 + Supabase, Faz 1-2 tamam)
     ├── src/
-    │   ├── app/             (App Router sayfaları)
-    │   ├── proxy.ts         (Next.js 16 middleware→proxy rename)
-    │   └── lib/supabase/    (client.ts, server.ts, proxy.ts)
+    │   ├── app/
+    │   │   ├── (customer)/  (route group: /, /randevu-al, /randevularim — BottomNav layout)
+    │   │   └── panel/       (/panel, /hizmetler, /berberler, /analitik — sidebar layout)
+    │   ├── components/      (BottomNav.tsx, PanelNav.tsx)
+    │   ├── lib/
+    │   │   ├── mock-data.ts (geçici veri katmanı — Supabase kurulunca değişecek)
+    │   │   ├── types.ts
+    │   │   └── supabase/    (client.ts, server.ts, proxy.ts)
+    │   └── proxy.ts         (Next.js 16 middleware→proxy rename)
     └── supabase/
         └── migrations/0001_initial_schema.sql  (Supabase projesi oluşunca uygulanacak)
 ```
