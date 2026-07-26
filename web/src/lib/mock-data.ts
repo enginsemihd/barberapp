@@ -1,4 +1,4 @@
-import type { Appointment, Service, ShopSettings, Staff } from "./types";
+import type { Appointment, Customer, Service, ShopSettings, Staff } from "./types";
 
 // Geçici mock veri katmanı — Supabase projesi kurulunca bu dosyanın yerini
 // gerçek sorgular (bkz. lib/supabase/*) alacak. Sayfa bileşenleri bu veriyi
@@ -84,6 +84,16 @@ export const shopAppointments: Appointment[] = [
   { id: "d6", customerName: "Onur Yıldız", serviceId: "cocuk-kesimi", staffId: "emre", date: "2026-07-21", startTime: "15:30", endTime: "16:00", status: "pending", price: 300, depositAmount: 150, paymentStatus: "unpaid" },
   { id: "d7", customerName: "Selim Ak", serviceId: "sac-sakal", staffId: "can", date: "2026-07-21", startTime: "11:30", endTime: "12:15", status: "confirmed", price: 500, depositAmount: 250, paymentStatus: "deposit_paid" },
   { id: "d8", customerName: "Barış Er", serviceId: "ustura-sakal", staffId: "can", date: "2026-07-21", startTime: "17:45", endTime: "18:15", status: "confirmed", price: 300, depositAmount: 150, paymentStatus: "deposit_paid" },
+];
+
+export const customers: Customer[] = [
+  { id: "c1", name: "Kerem Aydın", phone: "0532 111 22 33", notificationChannel: "whatsapp", totalVisits: 12, lastVisit: "2026-07-21" },
+  { id: "c2", name: "Deniz Kaya", phone: "0533 222 33 44", notificationChannel: "whatsapp", totalVisits: 3, lastVisit: "2026-07-21" },
+  { id: "c3", name: "Ali Veli", phone: "0534 333 44 55", notificationChannel: "sms", totalVisits: 1, lastVisit: "2026-07-14", notes: "Geçmiş randevuyu iptal etti" },
+  { id: "c4", name: "Burak Şen", phone: "0535 444 55 66", notificationChannel: "whatsapp", totalVisits: 7, lastVisit: "2026-07-21" },
+  { id: "c5", name: "Onur Yıldız", phone: "0536 555 66 77", notificationChannel: "sms", totalVisits: 2, lastVisit: "2026-07-21" },
+  { id: "c6", name: "Selim Ak", phone: "0537 666 77 88", notificationChannel: "whatsapp", totalVisits: 15, lastVisit: "2026-07-21" },
+  { id: "c7", name: "Barış Er", phone: "0538 777 88 99", notificationChannel: "whatsapp", totalVisits: 5, lastVisit: "2026-07-21" },
 ];
 
 export function getService(id: string): Service | undefined {

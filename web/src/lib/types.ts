@@ -37,6 +37,16 @@ export interface Appointment {
   paymentStatus: PaymentStatus;
 }
 
+export interface Customer {
+  id: string;
+  name: string;
+  phone: string;
+  notificationChannel: "whatsapp" | "sms";
+  totalVisits: number;
+  lastVisit: string | null; // YYYY-MM-DD
+  notes?: string;
+}
+
 export interface ShopSettings {
   name: string;
   address: string;

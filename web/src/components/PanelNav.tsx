@@ -7,7 +7,9 @@ const items = [
   { href: "/panel", label: "Takvim", glyph: "▦" },
   { href: "/panel/hizmetler", label: "Hizmetler", glyph: "✂" },
   { href: "/panel/berberler", label: "Berberler", glyph: "◐" },
+  { href: "/panel/musteriler", label: "Müşteriler", glyph: "☰" },
   { href: "/panel/analitik", label: "Analitik", glyph: "◈" },
+  { href: "/panel/ayarlar", label: "Ayarlar", glyph: "⚙" },
 ];
 
 export default function PanelNav() {

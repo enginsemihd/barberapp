@@ -1,8 +1,20 @@
-import { getService, shopAppointments, staff } from "@/lib/mock-data";
+"use client";
+
+import { useState } from "react";
+import { formatPrice, getService, getStaff, shopAppointments, staff } from "@/lib/mock-data";
+import type { Appointment, AppointmentStatus } from "@/lib/types";
 
 const GRID_START_MIN = 9 * 60;
 const PX_PER_HOUR = 64;
 const HOURS = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
+
+const statusLabel: Record<AppointmentStatus, string> = {
+  pending: "Onay Bekliyor",
+  confirmed: "Onaylandı",
+  completed: "Tamamlandı",
+  cancelled: "İptal Edildi",
+  no_show: "Gelmedi",
+};
 
 function toMinutes(hhmm: string) {
   const [h, m] = hhmm.split(":").map(Number);
@@ -10,7 +22,15 @@ function toMinutes(hhmm: string) {
 }
 
 export default function TakvimPage() {
-  const dayAppointments = shopAppointments.filter((a) => a.date === "2026-07-21");
+  const [appointments, setAppointments] = useState<Appointment[]>(shopAppointments);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const dayAppointments = appointments.filter((a) => a.date === "2026-07-21");
+  const selected = appointments.find((a) => a.id === selectedId) ?? null;
+
+  function setStatus(id: string, status: AppointmentStatus) {
+    setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
+  }
 
   return (
     <>
@@ -81,8 +101,11 @@ export default function TakvimPage() {
                     return (
                       <div
                         key={a.id}
+                        role="button"
+                        tabIndex={0}
                         className={`appt-block ${statusClass}`}
                         style={{ top, height: Math.max(height, 28) }}
+                        onClick={() => setSelectedId(a.id)}
                       >
                         <div className="t">
                           {a.startTime}–{a.endTime}
@@ -97,6 +120,86 @@ export default function TakvimPage() {
           </div>
         </div>
       </div>
+
+      {selected && (
+        <div
+          onClick={() => setSelectedId(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(23,20,15,.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 60,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="panel"
+            style={{ width: 360, background: "var(--surface)", boxShadow: "var(--shadow)" }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+              <h3 style={{ margin: 0 }}>{selected.customerName}</h3>
+              <span className={`pill ${selected.status === "confirmed" ? "confirmed" : selected.status === "pending" ? "pending" : selected.status === "completed" ? "done" : "cancelled"}`}>
+                {statusLabel[selected.status]}
+              </span>
+            </div>
+            <div className="summary-card" style={{ marginBottom: 14 }}>
+              <div className="summary-line">
+                <span className="k">Hizmet</span>
+                <span className="v">{getService(selected.serviceId)?.name}</span>
+              </div>
+              <div className="summary-line">
+                <span className="k">Usta</span>
+                <span className="v">{getStaff(selected.staffId)?.name}</span>
+              </div>
+              <div className="summary-line">
+                <span className="k">Saat</span>
+                <span className="v tabular">
+                  {selected.startTime} – {selected.endTime}
+                </span>
+              </div>
+              <div className="summary-line">
+                <span className="k">Ücret</span>
+                <span className="v">{formatPrice(selected.price)}</span>
+              </div>
+              <div className="summary-line">
+                <span className="k">Ön ödeme</span>
+                <span className="v">
+                  {formatPrice(selected.depositAmount)} · {selected.paymentStatus === "deposit_paid" ? "alındı" : selected.paymentStatus === "paid_in_full" ? "tamamlandı" : "alınmadı"}
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {selected.status === "pending" && (
+                <button className="btn btn-primary btn-sm" type="button" onClick={() => setStatus(selected.id, "confirmed")}>
+                  Onayla
+                </button>
+              )}
+              {selected.status === "confirmed" && (
+                <>
+                  <button className="btn btn-primary btn-sm" type="button" onClick={() => setStatus(selected.id, "completed")}>
+                    Tamamlandı İşaretle
+                  </button>
+                  <button className="btn btn-ghost btn-sm" type="button" onClick={() => setStatus(selected.id, "no_show")}>
+                    Gelmedi İşaretle
+                  </button>
+                </>
+              )}
+              {selected.status !== "cancelled" && selected.status !== "completed" && (
+                <button className="btn btn-ghost btn-sm" type="button" onClick={() => setStatus(selected.id, "cancelled")}>
+                  İptal Et
+                </button>
+              )}
+              <button className="btn btn-ghost btn-sm" type="button" onClick={() => setSelectedId(null)} style={{ marginLeft: "auto" }}>
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
