@@ -15,6 +15,7 @@ create table shop_settings (
   logo_url text,
   timezone text not null default 'Europe/Istanbul',
   cancellation_window_hours int not null default 6,
+  deposit_percent int not null default 50 check (deposit_percent between 0 and 100),
   created_at timestamptz not null default now()
 );
 
@@ -87,6 +88,8 @@ create table appointments (
   end_time timestamptz not null,
   status text not null default 'pending' check (status in ('pending', 'confirmed', 'completed', 'cancelled', 'no_show')),
   price numeric(10, 2) not null,
+  deposit_amount numeric(10, 2) not null,
+  payment_status text not null default 'unpaid' check (payment_status in ('unpaid', 'deposit_paid', 'paid_in_full')),
   notes text,
   created_at timestamptz not null default now(),
   check (end_time > start_time),
@@ -96,6 +99,16 @@ create table appointments (
     staff_id with =,
     tstzrange (start_time, end_time) with &&
   ) where (status not in ('cancelled'))
+);
+
+create table payments (
+  id uuid primary key default gen_random_uuid(),
+  appointment_id uuid not null references appointments (id) on delete cascade,
+  amount numeric(10, 2) not null check (amount >= 0),
+  provider text not null default 'iyzico',
+  provider_ref text,
+  status text not null default 'pending' check (status in ('pending', 'succeeded', 'failed', 'refunded')),
+  created_at timestamptz not null default now()
 );
 
 create table notifications_log (
@@ -143,6 +156,7 @@ alter table staff_schedules enable row level security;
 alter table staff_time_off enable row level security;
 alter table customers enable row level security;
 alter table appointments enable row level security;
+alter table payments enable row level security;
 alter table notifications_log enable row level security;
 
 -- Herkes (giriş yapmamış ziyaretçi dahil) dükkan/hizmet/berber bilgisini
@@ -195,6 +209,18 @@ create policy "appointments: customer update own" on appointments for update
     customer_id in (select id from customers where user_id = auth.uid())
     or staff_id = current_staff_id()
     or current_staff_role() = 'owner'
+  );
+
+-- payments: müşteri sadece kendi randevusuna ait ödemeyi görür; staff/owner hepsini görür.
+-- Yazma yalnızca Edge Function'lar üzerinden (service_role) yapılır, burada insert/update
+-- politikası yok — müşteri veya staff doğrudan ödeme kaydı oluşturamaz/değiştiremez.
+create policy "payments: read own or staff" on payments for select
+  using (
+    appointment_id in (
+      select id from appointments
+      where customer_id in (select id from customers where user_id = auth.uid())
+    )
+    or current_staff_role() is not null
   );
 
 -- notifications_log: sadece staff/owner görür (dahili log).

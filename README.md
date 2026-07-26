@@ -23,24 +23,34 @@ Orijinal planda backend olarak **Next.js + Supabase + Twilio** öngörülmüşt�
 - `public/index.html`: Aynı mockup'ın bağımsız, tam `<html>` dokümanı hâli — statik hosting (Vercel) için
 
 Mockup, saf HTML/CSS/vanilla JS ile yapıldı (framework yok). İçeriği:
-- **Müşteri akışı (telefon çerçevesi, 6 ekran):** Ana Sayfa → Hizmet Seçimi → Berber Seçimi → Tarih/Saat → Onay & Bildirim (WhatsApp/SMS kanal seçici + mesaj önizlemesi) → Randevularım
+- **Müşteri akışı (telefon çerçevesi, 6 ekran):** Ana Sayfa → Hizmet Seçimi → Berber Seçimi → Tarih/Saat → Onay & Bildirim (**%50 ön ödeme kartı + kalan tutar dükkanda** + WhatsApp/SMS kanal seçici + mesaj önizlemesi) → Randevularım
 - **Berber Paneli (masaüstü çerçevesi, 4 ekran):** Takvim (3 berber sütunlu haftalık görünüm), Hizmetler tablosu, Berberler, Analitik
 
 Fiyatlar Gaziantep Berberler Esnaf Odası'nın 2026 resmi tarifesine göre: Saç Kesimi 350₺, Sakal Tıraşı 250₺, Saç+Sakal 500₺, Çocuk Kesimi 300₺, Saç Yıkama&Fön 250₺, Ustura Sakal 300₺, Damat Tıraşı 3.000₺.
 
 ### 3. Altyapı durumu
 - **GitHub:** `enginsemihd/barberapp`, public, bağlı ve push edilmiş durumda.
-- **Vercel:** `barberapp` projesi oluşturuldu, `public/index.html` deploy edildi ANCAK varsayılan "Deployment Protection" (Vercel Authentication) açık — link şu an login duvarına takılıyor. **Kullanıcı Vercel dashboard'dan Settings → Deployment Protection → Vercel Authentication'ı kapatacak** (henüz teyit edilmedi). GitHub reposu ile Vercel projesi arasında Git entegrasyonu da henüz kurulmadı (kullanıcıya adımlar verildi, tamamlanma durumu belirsiz).
+- **Vercel:** `barberapp` projesi oluşturuldu, `public/index.html` deploy edildi (production, güncel) ANCAK varsayılan "Deployment Protection" (Vercel Authentication) açık — link şu an login duvarına takılıyor. **Kullanıcı Vercel dashboard'dan Settings → Deployment Protection → Vercel Authentication'ı kapatacak** (henüz teyit edilmedi). GitHub reposu ile Vercel projesi arasında Git entegrasyonu da henüz kurulmadı.
 - Not: Kullanılan Vercel MCP bağlantısı, kullanıcının gerçek Vercel hesabının sadece bir kısmını görebiliyor (`list_projects` sadece `stocktrack`'i döndürüyor, `barberapp`'i bile göremiyor). Bu yüzden proje silme/git-bağlama gibi işlemler bu oturumdan otomatik yapılamadı, kullanıcıya manuel adımlar verildi.
+- **Supabase:** Proje henüz oluşturulamadı — `TatrzanskaTeam` org'unda **ödenmemiş fatura** var, Supabase yeni proje açmayı reddediyor. Kullanıcı faturayı kapatmalı: [dashboard'daki invoices sayfası](https://supabase.com/dashboard/org/vaaqfzgfbfzrqpmgmdkx/invoices). Ödenince: `npx supabase link` + `supabase db push` ile `web/supabase/migrations/`'daki şema uygulanır.
+
+### 4. Faz 1 — Next.js scaffold (`web/`)
+Gerçek uygulamanın kodu `web/` klasöründe: Next.js 16 (App Router, TypeScript, Tailwind) + Supabase SSR auth wiring (`src/lib/supabase/client.ts`, `server.ts`, `proxy.ts`). **Next.js 16'da `middleware.ts` deprecated olup `proxy.ts`'e taşındı** — bu proje o yeni convention'ı kullanıyor.
+
+`web/supabase/migrations/0001_initial_schema.sql` tüm çekirdek tabloları + RLS politikalarını + çifte-randevu önleyen EXCLUDE constraint'i içeriyor. Supabase projesi oluşunca tek komutla (`supabase db push`) uygulanmaya hazır, henüz uygulanmadı (proje yok).
+
+Yerel dev sunucusu çalışıyor: `.claude/launch.json`'da `barberapp-web` config'i var (port 3010, `web/` içinde `npm run dev`).
 
 ## Alınan Önemli Kararlar (Karar Günlüğü)
 
 | Karar | Ne değişti | Neden |
 |---|---|---|
-| Kapora/online ödeme kaldırıldı | Randevu onayı artık ödemeye bağlı değil, doğrudan SMS/WhatsApp'tan geliyor | Kullanıcı talebi — basitlik, ödeme altyapısı gereksiz karmaşıklık |
+| ~~Kapora/online ödeme kaldırıldı~~ → **geri getirildi: %50 ön ödeme** | `payments` tablosu ve `appointments.deposit_amount`/`payment_status` geri eklendi, iyzico entegrasyonu planlandı (Faz 6/7) | Kullanıcı talebi (2026-07-26) — randevu garantisi için ön ödeme, kalan tutar dükkanda |
+| Ödeme sağlayıcısı: iyzico (Stripe değil) | Mimari & Teknoloji bölümüne eklendi | Türkiye pazarı — Stripe TR'de tam desteklenmiyor, iyzico TL ile çalışan yerli sağlayıcı |
 | Onay + hatırlatma kanalı: WhatsApp veya SMS (müşteri seçiyor) | `customers.notification_channel` alanı eklendi | Kullanıcı talebi |
 | Fiyatlar Gaziantep resmi tarifesine göre güncellendi | Bkz. yukarıki fiyat listesi | Gerçekçilik — kullanıcı Gaziantep'te bir berber için yapıyor |
 | Tek dükkan, çok-berber | `shops` tablosu yok, `shop_settings` tekil satır; `staff` tablosunda `role` (owner\|barber) | Kullanıcı kapsamı: SaaS değil, tek dükkan |
+| Build sırası: önce çekirdek app, sonra WhatsApp/IVR | Faz 1-8 çekirdek, Faz 9 bot katmanı | WhatsApp/IVR'nin ihtiyaç duyduğu müsaitlik verisi çekirdek app'te kurulur, mock veri + yeniden bağlama riski önlenir |
 
 ## Mimari Notu — WhatsApp/IVR Katmanı Güncellemesi (YENİ, henüz plana işlenmedi)
 
@@ -88,19 +98,30 @@ IVR webhook'una gelen çağrının `Caller ID`'si "özel numaralar" tablosunda v
 
 ## Sıradaki Adımlar
 
-1. Vercel deployment protection kapatma + GitHub-Vercel git entegrasyonu — kullanıcı tarafında tamamlanacak
-2. Santral (Netgsm/Bulutfon) + Meta WhatsApp Business başvurularını şimdi başlat (yavaş süreçler, kodlamayı beklemesin)
-3. Faz 1'e başla: Next.js scaffold + Supabase proje kurulumu (`docs/barberapp.md` → "Geliştirme Aşamaları")
-4. Faz 1-8 bitince Faz 9'a (WhatsApp Bot + IVR) geç
+1. **Kullanıcı tarafında:** Supabase'de ödenmemiş faturayı kapat (proje oluşturmayı bloke ediyor) — bkz. "Altyapı durumu"
+2. **Kullanıcı tarafında:** Vercel deployment protection kapatma + GitHub-Vercel git entegrasyonu
+3. **Kullanıcı tarafında:** Santral (Netgsm/Bulutfon) + Meta WhatsApp Business başvurularını şimdi başlat (yavaş süreçler, kodlamayı beklemesin)
+4. Supabase faturası kapanınca: proje oluştur, `web/supabase/migrations/`'ı uygula, `.env.local`'i doldur
+5. Faz 2'ye geç: mockup'taki ekranların gerçek Next.js UI'a dökülmesi (hizmet/berber CRUD, dashboard)
+6. Faz 6/7'de iyzico entegrasyonu, Faz 1-8 bitince Faz 9'a (WhatsApp Bot + IVR) geç
 
 ## Proje Yapısı
 
 ```
 BarberApp/
 ├── README.md              (bu dosya — genel context)
+├── .claude/
+│   └── launch.json         (dev sunucusu config'i — barberapp-web, port 3010)
 ├── docs/
 │   ├── barberapp.md        (derinlemesine plan — veri modeli, akışlar, mimari)
 │   └── mockup.html         (Artifact fragment — Claude'da yayınlanan versiyon)
-└── public/
-    └── index.html          (mockup'ın bağımsız statik hosting versiyonu — Vercel'e deploy edilen budur)
+├── public/
+│   └── index.html          (mockup'ın bağımsız statik hosting versiyonu — Vercel'e deploy edilen budur)
+└── web/                     (gerçek uygulama — Next.js 16 + Supabase, Faz 1 scaffold tamam)
+    ├── src/
+    │   ├── app/             (App Router sayfaları)
+    │   ├── proxy.ts         (Next.js 16 middleware→proxy rename)
+    │   └── lib/supabase/    (client.ts, server.ts, proxy.ts)
+    └── supabase/
+        └── migrations/0001_initial_schema.sql  (Supabase projesi oluşunca uygulanacak)
 ```

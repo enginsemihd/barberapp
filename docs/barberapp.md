@@ -7,7 +7,7 @@ Sıfırdan yeni bir proje: bir berber dükkanının kullanacağı **müşteri ra
 - **Platform:** Web (responsive) — hem müşteri hem dashboard aynı web app içinde
 - **Kapsam:** Tek dükkan (çok kiracılı SaaS değil), ama dükkan içinde birden fazla berber/koltuk desteklenecek
 - **Backend:** Supabase (Postgres + Auth + Realtime + Edge Functions)
-- **Müşteri özellikleri:** online randevu + hizmet/berber seçimi, SMS/WhatsApp ile onay + hatırlatma, geçmiş randevular + favori berber (kapora/online ödeme yok — randevu onayı doğrudan SMS/WhatsApp üzerinden)
+- **Müşteri özellikleri:** online randevu + hizmet/berber seçimi, **%50 ön ödeme + kalan tutar dükkanda** (bkz. "Ödeme Akışı"), SMS/WhatsApp ile onay + hatırlatma, geçmiş randevular + favori berber
 
 Bu planın amacı: ürünü uçtan uca (akışlar, veri modeli, mimari, ekranlar, kenar durumlar) netleştirmek. Bir sonraki adım — kullanıcının belirttiği gibi — bu plan üzerinden bir **mockup** üretmek olacak; gerçek kodlama mockup onaylandıktan sonra başlar.
 
@@ -21,7 +21,7 @@ Bu planın amacı: ürünü uçtan uca (akışlar, veri modeli, mimari, ekranlar
 Roller `staff` tablosunda tek bir `role` kolonu ile ayrılır (owner | barber) — ayrı tablo/tenant yapısına gerek yok.
 
 ### Çekirdek akışlar
-1. **Müşteri randevu alma:** Hizmet seç → Berber seç (ya da "farketmez") → Uygun tarih/saat seç → Bildirim kanalı seç (WhatsApp/SMS) → Onayla → aynı kanaldan anlık onay mesajı
+1. **Müşteri randevu alma:** Hizmet seç → Berber seç (ya da "farketmez") → Uygun tarih/saat seç → **%50 ön ödeme yap** → Bildirim kanalı seç (WhatsApp/SMS) → Onayla → aynı kanaldan anlık onay mesajı (kalan %50 dükkanda ödenir)
 2. **Berber/owner takvim yönetimi:** Günlük/haftalık takvimde randevuları gör, onayla/iptal et/tamamlandı işaretle/no-show işaretle, elden (walk-in) randevu oluştur
 3. **Hatırlatma:** Randevudan 24 saat ve 2 saat önce otomatik SMS/WhatsApp
 4. **Müşteri geçmişi:** Geçmiş/gelecek randevular, favori berber, tekrar randevu alma
@@ -33,7 +33,7 @@ Roller `staff` tablosunda tek bir `role` kolonu ile ayrılır (owner | barber) �
 2. Hizmet seçimi
 3. Berber seçimi ("farketmez" opsiyonu dahil)
 4. Tarih/saat slot seçici (müsaitliğe göre)
-5. Randevu özeti + bildirim kanalı seçimi (WhatsApp/SMS) + onay mesajı önizlemesi
+5. Randevu özeti + **%50 ön ödeme (kart)** + bildirim kanalı seçimi (WhatsApp/SMS) + onay mesajı önizlemesi
 6. Giriş/Kayıt (telefon OTP)
 7. Randevularım (yaklaşan / geçmiş liste)
 8. Randevu detayı (iptal/yeniden planla)
@@ -54,14 +54,15 @@ Roller `staff` tablosunda tek bir `role` kolonu ile ayrılır (owner | barber) �
 
 Tek dükkan olduğu için `shops` tablosu yok — dükkan bilgisi tek satırlık `shop_settings` içinde tutulur.
 
-- **`shop_settings`**: name, address, phone, logo_url, timezone, cancellation_window_hours
+- **`shop_settings`**: name, address, phone, logo_url, timezone, cancellation_window_hours, deposit_percent (varsayılan 50)
 - **`staff`**: id, user_id (FK auth.users), name, photo_url, bio, phone, role (owner|barber), is_active
 - **`services`**: id, name, description, duration_minutes, price, category, is_active
 - **`staff_services`**: staff_id, service_id (hangi berber hangi hizmeti verir — override süre/fiyat opsiyonel)
 - **`staff_schedules`**: staff_id, day_of_week, start_time, end_time (haftalık tekrarlayan müsaitlik)
 - **`staff_time_off`**: staff_id, start_datetime, end_datetime, reason (izin/tatil istisnaları)
 - **`customers`**: id, user_id (FK auth.users), name, phone, email, notification_channel (whatsapp|sms), notes, created_at
-- **`appointments`**: id, customer_id, staff_id, service_id, start_time, end_time, status (pending|confirmed|completed|cancelled|no_show), price, notes, created_at
+- **`appointments`**: id, customer_id, staff_id, service_id, start_time, end_time, status (pending|confirmed|completed|cancelled|no_show), price, deposit_amount, payment_status (unpaid|deposit_paid|paid_in_full), notes, created_at
+- **`payments`**: id, appointment_id, amount, provider (iyzico), provider_ref, status (pending|succeeded|failed|refunded), created_at
 - **`notifications_log`**: id, appointment_id, type (sms|whatsapp), purpose (confirmation|reminder_24h|reminder_2h), sent_at, status
 - **`whitelist_numbers`** (Faz 9): phone, label — IVR'da bu numaralardan gelen aramalar menü okunmadan doğrudan berberin kişisel cebine yönlendirilir
 
@@ -78,6 +79,7 @@ RLS: müşteriler yalnızca kendi `appointments`/`customers` kayıtlarını gör
 - **WhatsApp**: Meta WhatsApp Cloud API (resmi API) — Twilio değil
 - **SMS + Sesli arama (IVR)**: Sanal santral sağlayıcısı (Netgsm/Bulutfon) — yeni bir **0850'li numara** üzerinden hem SMS hem IVR/DTMF çalışır. Berberin kişisel numarası aynı kalır; WhatsApp Business "Kişilerim Dışındakiler" otomatik yanıtıyla bot linkine (`wa.me/90850...`) yönlendirilir, meşgul/açılmayan aramalar operatör üzerinden 0850'ye yönlendirilir.
 - Webhook'lar (`/api/whatsapp/webhook`, `/api/ivr/webhook`) **ayrı bir Express servisi değil**, Next.js API routes içinde yaşar — tek deploy birimi, tek veri modeli erişimi (bkz. "Sıradaki Adım")
+- **Ödeme**: iyzico (Türkiye pazarı için — Stripe Türkiye'de tam desteklenmiyor). %50 ön ödeme kart ile alınır, kalan %50 dükkanda nakit/kart ile ödenir (uygulama takip etmez, sadece owner panelinde "tamamlandı" işaretlenir)
 - **Hosting**: Vercel (Next.js ile native entegrasyon)
 
 ## Rezervasyon / Çakışma Mantığı
@@ -86,17 +88,24 @@ RLS: müşteriler yalnızca kendi `appointments`/`customers` kayıtlarını gör
 - Çifte rezervasyonu önlemek için `appointments` üzerinde `staff_id` + zaman aralığına göre bir **EXCLUDE constraint** (tstzrange, GiST) kullanılır — race condition'da bile veritabanı seviyesinde engellenir
 - Slot granülaritesi: 15 dakika; son slot, kapanış saatinden hizmet süresi kadar önce bitmeli
 
+## Ödeme Akışı (%50 Ön Ödeme)
+
+- Randevu oluşturulurken bir Edge Function iyzico'da `deposit_amount` (= `price * shop_settings.deposit_percent / 100`) tutarında ödeme başlatır
+- Ödeme başarılı olursa: `appointments.payment_status = 'deposit_paid'`, `status = 'confirmed'`, `payments` tablosuna `succeeded` kaydı düşülür
+- Ödeme başarısız olursa: randevu oluşturulmaz (slot rezerve edilmez) — müşteriye hata gösterilir, tekrar denemesi istenir
+- Kalan %50: dükkanda ödenir, uygulama tarafından işlenmez; owner randevuyu "tamamlandı" işaretlerken `payment_status = 'paid_in_full'` yapabilir (opsiyonel, sadece kayıt amaçlı)
+- İptal + iade: `cancellation_window_hours` içinde iptal edilirse iyzico üzerinden otomatik iade tetiklenir (`payments` durumu `refunded`); pencere dışında iade yok (bkz. "Kenar Durumlar")
+
 ## Bildirim Akışı (Onay + Hatırlatma)
 
-- **Onay:** Müşteri randevuyu onayladığı an bir Edge Function tetiklenir → randevu `confirmed` olur → müşterinin tercih ettiği kanaldan (Meta Cloud API/WhatsApp ya da santral/SMS) anlık onay mesajı gönderilir → `notifications_log`'a `confirmation` olarak yazılır
+- **Onay:** Ön ödeme başarılı olduğu an bir Edge Function tetiklenir → müşterinin tercih ettiği kanaldan (Meta Cloud API/WhatsApp ya da santral/SMS) anlık onay mesajı gönderilir (ödenen/kalan tutar dahil) → `notifications_log`'a `confirmation` olarak yazılır
 - **Hatırlatma:** pg_cron her birkaç dakikada bir çalışan bir Edge Function tetikler → yaklaşan (24s/2s) randevuları bulur → aynı tercih edilen kanaldan gönderir → `notifications_log`'a `reminder_24h`/`reminder_2h` olarak yazılır
-- Ödeme/kapora yok — randevu, oluşturulduğu anda (ya da owner onayıyla) `confirmed` durumuna geçer
-- **Gelen WhatsApp/arama akışı** (müşteri randevu almak için 0850'yi mesajlar/arar): ayrı bir kanal, "Geliştirme Aşamaları"nda Faz 9 — çekirdek uygulamadaki aynı `get_available_slots` RPC'sini ve `appointments` tablosunu kullanır, kendi veri modeli icat etmez
+- **Gelen WhatsApp/arama akışı** (müşteri randevu almak için 0850'yi mesajlar/arar): ayrı bir kanal, "Geliştirme Aşamaları"nda Faz 9 — çekirdek uygulamadaki aynı `get_available_slots` RPC'sini, `appointments` tablosunu ve ödeme akışını kullanır, kendi veri modeli icat etmez
 
 ## Kenar Durumlar
 
 - Zaman dilimi: tek dükkan → tek timezone, DB'de UTC saklanır, arayüzde yerel saat gösterilir
-- İptal politikası: `cancellation_window_hours` içinde iptal serbest; sonrasında iptal edilirse owner'a bildirim gider (yaptırım yok, kapora olmadığı için)
+- İptal politikası: `cancellation_window_hours` içinde iptal edilirse %50 ön ödeme otomatik iade edilir; pencere dışında iptal edilirse ön ödeme iade edilmez (owner'a bildirim gider)
 - No-show: owner işaretler, tekrarlayan no-show'lar müşteri profilinde görünür (gelecekte otomatik engelleme için temel)
 - Randevu oluşturmak için hesap zorunlu (telefon OTP) — geçmiş/favori özelliği bunu gerektiriyor, misafir rezervasyonu yok
 - Owner aynı zamanda berber olabilir (role birleşimi `staff` tablosunda doğal olarak destekleniyor)
@@ -130,4 +139,5 @@ Bu iki başvuru süreci yavaş işleyebilir; kodlama Faz 1-8'i beklerken paralel
 
 - Şema + RLS: Supabase'de migration uygulandıktan sonra `list_tables` ve `get_advisors` ile kontrol
 - Rezervasyon akışı: müsaitlik fonksiyonuna aynı anda iki istek göndererek çakışma constraint'inin çalıştığı test edilir
-- Uçtan uca: tarayıcıda müşteri akışı (hizmet seç → randevu al → SMS geldi mi) ve dashboard akışı (randevu göründü mü, durum değişikliği yansıdı mı) manuel test edilir
+- Uçtan uca: tarayıcıda müşteri akışı (hizmet seç → randevu al → %50 ön ödeme yap → SMS/WhatsApp geldi mi) ve dashboard akışı (randevu göründü mü, durum değişikliği yansıdı mı) manuel test edilir
+- Ödeme: iyzico test/sandbox kartlarıyla başarılı ödeme, başarısız ödeme (randevu oluşmamalı) ve iptal+iade akışları test edilir

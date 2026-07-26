@@ -414,6 +414,22 @@
   }
   .trustline .g{ font-size:13px; }
 
+  .deposit-note{
+    display:flex; gap:10px; align-items:flex-start;
+    background:rgba(173,128,46,.1); border:1px solid rgba(173,128,46,.3);
+    border-radius:12px; padding:12px; margin:14px 0; font-size:12.5px; color:var(--text);
+  }
+  .deposit-note .g{ font-size:16px; }
+
+  .paymethod{
+    display:flex; align-items:center; gap:10px;
+    border:1px solid var(--border-strong); border-radius:12px; padding:12px; margin-bottom:6px;
+  }
+  .paymethod .card-ico{
+    width:34px; height:24px; border-radius:5px; background:linear-gradient(135deg,#2A251C,#4A4030);
+    color:#F1E9D8; font-size:9px; display:flex; align-items:center; justify-content:center; font-weight:700;
+  }
+
   .channel-toggle{ display:flex; gap:8px; margin:10px 0 16px; }
   .ch-opt{
     flex:1; display:flex; align-items:center; justify-content:center; gap:7px;
@@ -652,6 +668,7 @@
               <span><b>4.9</b> ★ (312)</span>
             </div>
             <div class="trustline"><span class="g">💬</span>Randevu onayı ve hatırlatmalar WhatsApp/SMS ile gönderilir</div>
+            <div class="trustline" style="margin-top:-14px"><span class="g">💳</span>Randevu için %50 ön ödeme, kalanı dükkanda</div>
             <div class="section-title"><h2>Öne Çıkan Hizmetler</h2></div>
             <div class="hscroll">
               <div class="svc-chip"><div class="icon">✂️</div><div class="name">Saç Kesimi</div><div class="meta">30 dk · 350₺</div></div>
@@ -766,7 +783,20 @@
               <div class="summary-line"><span class="k">Usta</span><span class="v">Mert Usta</span></div>
               <div class="summary-line"><span class="k">Tarih</span><span class="v">22 Temmuz, Çarşamba</span></div>
               <div class="summary-line"><span class="k">Saat</span><span class="v tabular">14:30 – 15:00</span></div>
+              <div class="summary-line"><span class="k">Şimdi (%50 ön ödeme)</span><span class="v">175₺</span></div>
+              <div class="summary-line"><span class="k">Dükkanda ödenecek</span><span class="v">175₺</span></div>
               <div class="total-line"><span>Toplam</span><span class="v">350₺</span></div>
+            </div>
+
+            <div class="deposit-note">
+              <span class="g">💳</span>
+              <span>Randevunuzu garanti altına almak için <b>175₺ (%50) ön ödeme</b> alınır. Kalan <b>175₺</b> hizmet sonunda dükkanda ödenir.</span>
+            </div>
+
+            <div class="paymethod">
+              <div class="card-ico">VISA</div>
+              <div style="flex:1"><div style="font-size:13px;font-weight:600">•••• 4242</div><div style="font-size:11px;color:var(--text-faint)">Kayıtlı kart</div></div>
+              <span style="font-size:12px;color:var(--accent);font-weight:700">Değiştir</span>
             </div>
 
             <div class="cat-label" style="margin-top:18px">Onay &amp; hatırlatma nereden gönderilsin?</div>
@@ -778,14 +808,14 @@
             <div class="msg-preview">
               <div class="msg-preview-head"><span class="dot-ico wa" id="previewIcon">💬</span><span id="previewHeadLabel">USTA Berber Salonu</span></div>
               <div class="chat-bubble wa" id="previewBubble">
-                <p>✅ Randevunuz onaylandı!<br><b>22 Temmuz Çarşamba, 14:30</b><br>Mert Usta · Saç Kesimi (350₺)<br>📍 Kadıköy, Moda Cd. No:14</p>
+                <p>✅ Randevunuz onaylandı! 175₺ ön ödemeniz alındı.<br><b>22 Temmuz Çarşamba, 14:30</b><br>Mert Usta · Saç Kesimi (350₺, kalan 175₺ dükkanda)<br>📍 Kadıköy, Moda Cd. No:14</p>
                 <span class="ts">14:02 <span class="check">✓✓</span></span>
               </div>
               <p class="preview-hint">Randevudan 24 saat ve 2 saat önce otomatik hatırlatma da aynı kanaldan gönderilir.</p>
             </div>
 
-            <button class="btn btn-primary" style="width:100%" id="confirmBtn" type="button">Randevuyu Onayla</button>
-            <p class="fineprint">Randevu saatinden 6 saat öncesine kadar ücretsiz iptal edebilirsiniz.</p>
+            <button class="btn btn-primary" style="width:100%" id="confirmBtn" type="button">175₺ Öde ve Onayla</button>
+            <p class="fineprint">Randevu saatinden 6 saat öncesine kadar ücretsiz iptal edebilirsiniz. Daha geç iptallerde ön ödeme iade edilmez.</p>
           </section>
 
           <!-- 06 My appointments -->
@@ -811,7 +841,7 @@
           </section>
 
         </div>
-        <div class="toast" id="apptToast"><span>✅</span><span id="toastMsg">Randevunuz alındı — WhatsApp'tan onay gönderildi.</span></div>
+        <div class="toast" id="apptToast"><span>✅</span><span id="toastMsg">175₺ ön ödeme alındı — WhatsApp'tan onay gönderildi.</span></div>
         <div class="phone-tabbar">
           <div class="tab on"><span class="glyph">⌂</span>Ana Sayfa<span class="dot"></span></div>
           <div class="tab"><span class="glyph">✂</span>Randevu Al<span class="dot"></span></div>
@@ -1065,8 +1095,8 @@
     if(confirmBtn){
       confirmBtn.addEventListener('click', function(){
         toastMsg.textContent = selectedChannel === 'sms'
-          ? 'Randevunuz alındı — SMS ile onay gönderildi.'
-          : "Randevunuz alındı — WhatsApp'tan onay gönderildi.";
+          ? '175₺ ön ödeme alındı — SMS ile onay gönderildi.'
+          : "175₺ ön ödeme alındı — WhatsApp'tan onay gönderildi.";
         toast.classList.add('show');
         setTimeout(function(){
           document.querySelectorAll('#customerFrame .screen').forEach(function(s){ s.classList.toggle('on', s.id === 'c-appts'); });
