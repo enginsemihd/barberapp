@@ -35,6 +35,8 @@ export interface Appointment {
   price: number;
   depositAmount: number;
   paymentStatus: PaymentStatus;
+  /** Set only when the customer cancels: whether the deposit was refunded (cancelled outside the policy window) or forfeited (cancelled inside it). */
+  refundEligible?: boolean;
 }
 
 export interface Customer {

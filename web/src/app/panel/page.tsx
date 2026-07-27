@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { formatPrice, getService, getStaff, shopAppointments, staff } from "@/lib/mock-data";
 import type { Appointment, AppointmentStatus } from "@/lib/types";
 
@@ -10,6 +10,8 @@ const PX_PER_HOUR = 64;
 const PX_PER_MIN = PX_PER_HOUR / 60;
 const SNAP_MIN = 15;
 const MIN_DRAG_PX = SNAP_MIN * PX_PER_MIN; // below this, a pointer wiggle is a click, not a drag
+const LONG_PRESS_MS = 650;
+const HOLD_MOVE_CANCEL_PX = 10; // moving this much while holding cancels the long-press
 const HOURS = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
 
 const statusLabel: Record<AppointmentStatus, string> = {
@@ -45,6 +47,8 @@ export default function TakvimPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [holdingId, setHoldingId] = useState<string | null>(null);
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const dayAppointments = appointments.filter((a) => a.date === "2026-07-21");
   const selected = appointments.find((a) => a.id === selectedId) ?? null;
@@ -56,6 +60,20 @@ export default function TakvimPage() {
   function flashToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast((t) => (t === msg ? null : t)), 2200);
+  }
+
+  function clearHoldTimer() {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    setHoldingId(null);
+  }
+
+  function removeAppointment(appt: Appointment) {
+    setAppointments((list) => list.filter((a) => a.id !== appt.id));
+    setSelectedId((id) => (id === appt.id ? null : id));
+    flashToast(`${appt.customerName} randevusu kaldırıldı — slot boşaldı.`);
   }
 
   function snappedRange(appt: Appointment, deltaY: number) {
@@ -75,12 +93,26 @@ export default function TakvimPage() {
       // bounds); if the browser refuses it, the click/drag logic below still works
     }
     setDrag({ id: appt.id, startClientY: e.clientY, deltaY: 0, draggable: isDraggable(appt.status) });
+
+    if (appt.status === "cancelled") {
+      setHoldingId(appt.id);
+      holdTimerRef.current = setTimeout(() => {
+        holdTimerRef.current = null;
+        setHoldingId(null);
+        setDrag(null);
+        removeAppointment(appt);
+      }, LONG_PRESS_MS);
+    }
   }
 
   function handlePointerMove(e: React.PointerEvent<HTMLDivElement>, appt: Appointment) {
     setDrag((prev) => {
       if (!prev || prev.id !== appt.id) return prev;
-      return { ...prev, deltaY: e.clientY - prev.startClientY };
+      const deltaY = e.clientY - prev.startClientY;
+      if (holdTimerRef.current && Math.abs(deltaY) > HOLD_MOVE_CANCEL_PX) {
+        clearHoldTimer();
+      }
+      return { ...prev, deltaY };
     });
   }
 
@@ -89,6 +121,10 @@ export default function TakvimPage() {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {
       // already released or never captured — fine, proceed with click/drag logic
+    }
+    if (holdTimerRef.current) {
+      // released before the long-press fired — treat as a normal tap instead
+      clearHoldTimer();
     }
     setDrag((prev) => {
       if (!prev || prev.id !== appt.id) return null;
@@ -166,10 +202,11 @@ export default function TakvimPage() {
             Onay Bekliyor
           </span>
           <span>
-            <i style={{ background: "var(--text-faint)" }} />
+            <i style={{ background: "var(--rust)" }} />
             İptal
           </span>
           <span style={{ color: "var(--text-faint)" }}>🖐️ Sürükleyip saatini değiştirebilirsiniz</span>
+          <span style={{ color: "var(--text-faint)" }}>🗑️ İptal edilen randevuyu basılı tutup kaldırın</span>
         </div>
         <div className="cal-wrap" style={{ ["--staff-count" as string]: staff.length }}>
           <div className="cal-head">
@@ -202,12 +239,14 @@ export default function TakvimPage() {
                     const height = ((toMinutes(a.endTime) - toMinutes(a.startTime)) / 60) * PX_PER_HOUR;
                     const service = getService(a.serviceId);
                     const statusClass = a.status === "confirmed" ? "confirmed" : a.status === "pending" ? "pending" : "cancelled";
+                    const isHolding = holdingId === a.id;
                     return (
                       <div
                         key={a.id}
                         role="button"
                         tabIndex={0}
-                        className={`appt-block ${statusClass}`}
+                        title={a.status === "cancelled" ? "Kaldırmak için basılı tutun" : undefined}
+                        className={`appt-block ${statusClass}${isHolding ? " holding" : ""}`}
                         style={{
                           top,
                           height: Math.max(height, 28),
@@ -217,10 +256,15 @@ export default function TakvimPage() {
                           zIndex: isDragging ? 10 : undefined,
                           boxShadow: isDragging ? "var(--shadow)" : undefined,
                           opacity: isDragging ? 0.9 : undefined,
+                          animationDuration: isHolding ? `${LONG_PRESS_MS}ms` : undefined,
                         }}
                         onPointerDown={(e) => handlePointerDown(e, a)}
                         onPointerMove={(e) => handlePointerMove(e, a)}
                         onPointerUp={(e) => handlePointerUp(e, a)}
+                        onPointerCancel={() => {
+                          clearHoldTimer();
+                          setDrag(null);
+                        }}
                       >
                         <div className="t">
                           {preview ? `${toHHMM(preview.start)}–${toHHMM(preview.end)}` : `${a.startTime}–${a.endTime}`}

@@ -33,15 +33,26 @@ export const staff: Staff[] = [
 export const timeSlots = ["10:00", "10:30", "11:00", "13:30", "14:30", "15:00", "15:30", "16:00", "17:45"];
 export const fullSlots = new Set(["10:30", "15:30"]);
 
+// Randevu saatini "şu andan" göreli üretir — böylece iptal politikası demosu
+// (6 saat kuralı) her zaman doğru senaryoyu gösterir, mock veri "geçmişte
+// kalmış" bir tarihe sabitlenip anlamsızlaşmaz.
+function relativeSlot(hoursFromNow: number, durationMinutes: number) {
+  const start = new Date(Date.now() + hoursFromNow * 60 * 60 * 1000);
+  start.setSeconds(0, 0);
+  start.setMinutes(Math.round(start.getMinutes() / 15) * 15);
+  const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const date = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`;
+  return { date, startTime: `${pad(start.getHours())}:${pad(start.getMinutes())}`, endTime: `${pad(end.getHours())}:${pad(end.getMinutes())}` };
+}
+
 export const myAppointments: Appointment[] = [
   {
     id: "a1",
     customerName: "Kerem Aydın",
     serviceId: "sac-kesimi",
     staffId: "mert",
-    date: "2026-07-22",
-    startTime: "14:30",
-    endTime: "15:00",
+    ...relativeSlot(3, 30), // 6 saatlik ücretsiz iptal penceresinin içinde — iptal edilirse ön ödeme iade edilmez
     status: "confirmed",
     price: 350,
     depositAmount: 175,
@@ -52,22 +63,18 @@ export const myAppointments: Appointment[] = [
     customerName: "Kerem Aydın",
     serviceId: "sac-sakal",
     staffId: "can",
-    date: "2026-08-02",
-    startTime: "11:00",
-    endTime: "11:45",
-    status: "pending",
+    ...relativeSlot(50, 45), // pencerenin dışında — iptal edilirse tam iade
+    status: "confirmed",
     price: 500,
     depositAmount: 250,
-    paymentStatus: "unpaid",
+    paymentStatus: "deposit_paid",
   },
   {
     id: "a3",
     customerName: "Kerem Aydın",
     serviceId: "sakal-tirasi",
     staffId: "emre",
-    date: "2026-06-30",
-    startTime: "16:00",
-    endTime: "16:20",
+    ...relativeSlot(-72, 20),
     status: "completed",
     price: 250,
     depositAmount: 125,

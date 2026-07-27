@@ -1028,10 +1028,23 @@ a {
   color: var(--brass-strong);
 }
 .appt-block.cancelled {
-  background: var(--surface-2);
-  border-color: var(--text-faint);
-  color: var(--text-faint);
+  background: rgba(169, 74, 46, 0.14);
+  border-color: var(--rust);
+  color: var(--rust);
   text-decoration: line-through;
+}
+.appt-block.holding {
+  animation: apptHoldPulse linear forwards;
+}
+@keyframes apptHoldPulse {
+  from {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  to {
+    transform: scale(0.94);
+    filter: brightness(0.72);
+  }
 }
 
 .toolbar {
