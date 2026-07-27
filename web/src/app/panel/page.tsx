@@ -5,7 +5,11 @@ import { formatPrice, getService, getStaff, shopAppointments, staff } from "@/li
 import type { Appointment, AppointmentStatus } from "@/lib/types";
 
 const GRID_START_MIN = 9 * 60;
+const GRID_END_MIN = 19 * 60;
 const PX_PER_HOUR = 64;
+const PX_PER_MIN = PX_PER_HOUR / 60;
+const SNAP_MIN = 15;
+const MIN_DRAG_PX = SNAP_MIN * PX_PER_MIN; // below this, a pointer wiggle is a click, not a drag
 const HOURS = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
 
 const statusLabel: Record<AppointmentStatus, string> = {
@@ -21,15 +25,112 @@ function toMinutes(hhmm: string) {
   return h * 60 + m;
 }
 
+function toHHMM(minutes: number) {
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+function isDraggable(status: AppointmentStatus) {
+  return status === "pending" || status === "confirmed";
+}
+
+interface DragState {
+  id: string;
+  startClientY: number;
+  deltaY: number;
+  draggable: boolean;
+}
+
 export default function TakvimPage() {
   const [appointments, setAppointments] = useState<Appointment[]>(shopAppointments);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [drag, setDrag] = useState<DragState | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   const dayAppointments = appointments.filter((a) => a.date === "2026-07-21");
   const selected = appointments.find((a) => a.id === selectedId) ?? null;
 
   function setStatus(id: string, status: AppointmentStatus) {
     setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
+  }
+
+  function flashToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast((t) => (t === msg ? null : t)), 2200);
+  }
+
+  function snappedRange(appt: Appointment, deltaY: number) {
+    const duration = toMinutes(appt.endTime) - toMinutes(appt.startTime);
+    const rawDelta = deltaY / PX_PER_MIN;
+    const snappedDelta = Math.round(rawDelta / SNAP_MIN) * SNAP_MIN;
+    let newStart = toMinutes(appt.startTime) + snappedDelta;
+    newStart = Math.max(GRID_START_MIN, Math.min(newStart, GRID_END_MIN - duration));
+    return { start: newStart, end: newStart + duration };
+  }
+
+  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>, appt: Appointment) {
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // capture is a nice-to-have (keeps drag tracking outside the block's
+      // bounds); if the browser refuses it, the click/drag logic below still works
+    }
+    setDrag({ id: appt.id, startClientY: e.clientY, deltaY: 0, draggable: isDraggable(appt.status) });
+  }
+
+  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>, appt: Appointment) {
+    setDrag((prev) => {
+      if (!prev || prev.id !== appt.id) return prev;
+      return { ...prev, deltaY: e.clientY - prev.startClientY };
+    });
+  }
+
+  function handlePointerUp(e: React.PointerEvent<HTMLDivElement>, appt: Appointment) {
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // already released or never captured — fine, proceed with click/drag logic
+    }
+    setDrag((prev) => {
+      if (!prev || prev.id !== appt.id) return null;
+
+      // Anything under one snap-unit of movement is click jitter, not an
+      // intentional drag — always fall back to opening the detail modal.
+      if (Math.abs(prev.deltaY) < MIN_DRAG_PX) {
+        setSelectedId(appt.id);
+        return null;
+      }
+      if (!prev.draggable) {
+        flashToast("Bu randevu taşınamaz (tamamlandı/iptal edildi).");
+        return null;
+      }
+
+      const { start, end } = snappedRange(appt, prev.deltaY);
+      if (start === toMinutes(appt.startTime)) {
+        setSelectedId(appt.id);
+        return null;
+      }
+
+      const conflict = appointments.some(
+        (a) =>
+          a.id !== appt.id &&
+          a.staffId === appt.staffId &&
+          a.date === appt.date &&
+          a.status !== "cancelled" &&
+          start < toMinutes(a.endTime) &&
+          toMinutes(a.startTime) < end
+      );
+      if (conflict) {
+        flashToast("Çakışma var — o saat dolu.");
+        return null;
+      }
+
+      const oldStart = appt.startTime;
+      setAppointments((list) =>
+        list.map((a) => (a.id === appt.id ? { ...a, startTime: toHHMM(start), endTime: toHHMM(end) } : a))
+      );
+      flashToast(`${appt.customerName}: ${oldStart} → ${toHHMM(start)} taşındı`);
+      return null;
+    });
   }
 
   return (
@@ -68,6 +169,7 @@ export default function TakvimPage() {
             <i style={{ background: "var(--text-faint)" }} />
             İptal
           </span>
+          <span style={{ color: "var(--text-faint)" }}>🖐️ Sürükleyip saatini değiştirebilirsiniz</span>
         </div>
         <div className="cal-wrap" style={{ ["--staff-count" as string]: staff.length }}>
           <div className="cal-head">
@@ -94,7 +196,9 @@ export default function TakvimPage() {
                 {dayAppointments
                   .filter((a) => a.staffId === s.id)
                   .map((a) => {
-                    const top = ((toMinutes(a.startTime) - GRID_START_MIN) / 60) * PX_PER_HOUR;
+                    const isDragging = drag?.id === a.id && drag.draggable && Math.abs(drag.deltaY) >= MIN_DRAG_PX;
+                    const preview = isDragging ? snappedRange(a, drag!.deltaY) : null;
+                    const top = ((toMinutes(a.startTime) - GRID_START_MIN) / 60) * PX_PER_HOUR + (preview ? preview.start - toMinutes(a.startTime) : 0) * PX_PER_MIN;
                     const height = ((toMinutes(a.endTime) - toMinutes(a.startTime)) / 60) * PX_PER_HOUR;
                     const service = getService(a.serviceId);
                     const statusClass = a.status === "confirmed" ? "confirmed" : a.status === "pending" ? "pending" : "cancelled";
@@ -104,11 +208,22 @@ export default function TakvimPage() {
                         role="button"
                         tabIndex={0}
                         className={`appt-block ${statusClass}`}
-                        style={{ top, height: Math.max(height, 28) }}
-                        onClick={() => setSelectedId(a.id)}
+                        style={{
+                          top,
+                          height: Math.max(height, 28),
+                          cursor: isDraggable(a.status) ? (isDragging ? "grabbing" : "grab") : "pointer",
+                          touchAction: "none",
+                          userSelect: "none",
+                          zIndex: isDragging ? 10 : undefined,
+                          boxShadow: isDragging ? "var(--shadow)" : undefined,
+                          opacity: isDragging ? 0.9 : undefined,
+                        }}
+                        onPointerDown={(e) => handlePointerDown(e, a)}
+                        onPointerMove={(e) => handlePointerMove(e, a)}
+                        onPointerUp={(e) => handlePointerUp(e, a)}
                       >
                         <div className="t">
-                          {a.startTime}–{a.endTime}
+                          {preview ? `${toHHMM(preview.start)}–${toHHMM(preview.end)}` : `${a.startTime}–${a.endTime}`}
                         </div>
                         <div className="n">{a.customerName}</div>
                         {height > 40 && <div className="s">{service?.name}</div>}
@@ -200,6 +315,11 @@ export default function TakvimPage() {
           </div>
         </div>
       )}
+
+      <div className={`toast${toast ? " show" : ""}`} style={{ position: "fixed", bottom: 24 }}>
+        <span>🕓</span>
+        <span>{toast}</span>
+      </div>
     </>
   );
 }
